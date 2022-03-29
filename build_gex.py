@@ -1,8 +1,62 @@
 import io
+import json
 import os
 import shutil
 import sys
 import zlib
+
+
+def generate_ged(gej):
+    with io.BytesIO() as ged:
+        def write_int(i):
+            ged.write(i.to_bytes(4, 'little', signed=True))
+
+        def write_string(s):
+            write_int(len(s))
+            ged.write(s.encode('utf-8'))
+
+        ged.write(b'\xbc\02\0\0\0\0\0\0')
+        write_string(gej['name'])
+        write_string(gej['folder'])
+        write_string(gej['version'])
+        write_string(gej['author'])
+        write_string(gej['date'])
+        write_string(gej['license'])
+        write_string(gej['description'])
+        write_string(gej['helpfile'])
+        write_int(gej['hidden'])
+        write_int(len(gej['dependencies']))
+        for d in gej['dependencies']:
+            write_string(d)
+        write_int(len(gej['files']))
+        for fi in gej['files']:
+            write_int(700)
+            write_string(fi['filename'])
+            write_string(fi['origname'])
+            write_int(fi['kind'])
+            write_string(fi['init'])
+            write_string(fi['final'])
+            write_int(len(fi['functions']))
+            for fu in fi['functions']:
+                write_int(700)
+                write_string(fu['name'])
+                write_string(fu['extname'])
+                write_int(fu['calltype'])
+                write_string(fu['helpline'])
+                write_int(fu['hidden'])
+                write_int(len(fu['argtypes'])
+                          if fu['argtypes'] is not None else -1)
+                for i in range(17):
+                    write_int(
+                        fu['argtypes'][i] if fu['argtypes'] and i < len(fu['argtypes']) else 0)
+                write_int(fu['returntype'])
+            write_int(len(fi['constants']))
+            for c in fi['constants']:
+                write_int(700)
+                write_string(c['name'])
+                write_string(c['value'])
+                write_int(c['hidden'])
+        return bytearray(ged.getvalue())
 
 
 def gm_running():
@@ -83,8 +137,12 @@ def build_gex(ged_path, gex_path):
     if os.path.dirname(ged_path) != '':
         os.chdir(os.path.dirname(ged_path))
     # load ged
-    with open(ged_path, "rb") as f:
-        ged = bytearray(f.read())
+    if ged_path.endswith('.ged'):
+        with open(ged_path, "rb") as f:
+            ged = bytearray(f.read())
+    else:
+        with open(ged_path) as f:
+            ged = generate_ged(json.load(f))
     # this dword marks it as either a project or an installed extension (either .gex or appdata)
     ged[4] = 0
     # collect extension name, help file, and name/kind of every file
